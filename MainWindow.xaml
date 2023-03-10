@@ -1,0 +1,36 @@
+﻿<Window x:Class="PixelLife.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PixelLife"
+        mc:Ignorable="d"
+        Title="AMOEBA! Life Matrix" Height="600" Width="600" Icon="/green-5043260_960_720.jpg">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="0.8*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <GroupBox Grid.Row="0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column ="0" Name="textBlock1" TextWrapping="Wrap" VerticalAlignment="Center">
+                    <Bold>Initial State</Bold>
+                </TextBlock>
+                <Button Grid.Column="1" Name="PauseButton" Content="PAUSE/PLAY" HorizontalAlignment="Left" Margin="152,8,0,0" Height="20" VerticalAlignment="Top" IsDefault="True" Click="PauseState" />
+                <Button Grid.Column="1" x:Name="ResetButton" Content="RESET" HorizontalAlignment="Left" Margin="104,8,0,0" Height="20" VerticalAlignment="Top" IsDefault="True" Click="ResetState" />
+            </Grid>
+        </GroupBox>
+        <Border Grid.Row="1" BorderThickness="5" BorderBrush="Black" Grid.RowSpan="1" Height="Auto" Width="Auto" MinHeight="100" MinWidth="100">
+            <Image Grid.Row="1" x:Name="mainImage" Stretch="Uniform"/>
+        </Border>
+        <TextBlock Grid.Row="2" Name="textBlock2" TextWrapping="Wrap" MinHeight="5" VerticalAlignment="Center">
+            <Italic> Where is the universe? </Italic>
+        </TextBlock>
+
+    </Grid>
+</Window>
