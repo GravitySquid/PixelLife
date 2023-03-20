@@ -39,6 +39,9 @@ namespace PixelLife
         System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
         int Population = 80;
         private bool _setupComplete = false;
+        int Underpopulation = 1;
+        int Overpopulation = 5;
+        int Birth = 3;
 
         // CONSTANTS
         const int WIDTH = 400;
@@ -65,6 +68,8 @@ namespace PixelLife
             dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 1000);
             dispatcherTimer.Start();
             _setupComplete = true;
+            this.Top = 0;
+            this.Left = 100;
         }
 
         private void resetMatrix()
@@ -129,7 +134,7 @@ namespace PixelLife
             }
 
             // UPDATE CELLS
-            LifeMethod1(1,5,3);
+            LifeMethod1(Underpopulation, Overpopulation, Birth);
 
             // State Counter - tick over
             stateCounter++;
@@ -137,8 +142,9 @@ namespace PixelLife
             updateBitmap();
         }
 
-        private void LifeMethod1(int lonelyDeathTouches,int overpopulationDeathTouches,int procreationTouches)
+        private void LifeMethod1(int lonelyDeathTouches, int overpopulationDeathTouches, int procreationTouches)
         {
+            textBlockStatus.Text = string.Format("UnderPop: {0}, OverPop: {1}, Birth: {2}",lonelyDeathTouches.ToString(), overpopulationDeathTouches.ToString(), procreationTouches.ToString());
             // UPDATE CELLS
             int touchCount = 0;
             for (int i = 1; i < WIDTH - 1; i++)
@@ -205,13 +211,48 @@ namespace PixelLife
             pausedState = true;
             try
             {
-                Population = int.Parse(textBlockSeed.Text);
+                Population = int.Parse(TextBoxSeed.Text);
             }
             catch { Population = 80; }
             resetMatrix();
             updateBitmap();
         }
 
+        private void OverPopulationChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_setupComplete) { return; }
+            try
+            {
+                Overpopulation = int.Parse(TextBoxOverPop.Text);
+            }
+            catch { Overpopulation = 5; }
+            resetMatrix();
+            updateBitmap();
+        }
+
+        private void UnderPopulationChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_setupComplete) { return; }
+            try
+            {
+                Underpopulation = int.Parse(TextBoxUnderPop.Text);
+            }
+            catch { Underpopulation = 1; }
+            resetMatrix();
+            updateBitmap();
+        }
+
+        private void BirthChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_setupComplete) { return; }
+            try
+            {
+                Birth = int.Parse(TextBoxProcPop.Text);
+            }
+            catch { Birth = 3; }
+            resetMatrix();
+            updateBitmap();
+        }
     }
 
     public class cell

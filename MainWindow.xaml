@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PixelLife"
         mc:Ignorable="d"
-        Title="AMOEBA! Life Matrix" Height="800" Width="800" Icon="/green-5043260_960_720.jpg">
+        Title="AMOEBA! Life Matrix" Height="1000" Width="1000" Icon="/green-5043260_960_720.jpg">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -26,14 +26,25 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
+                
                 <TextBlock Grid.Column ="0" Grid.Row="0" Name="textBlock1" TextWrapping="Wrap" MinWidth="100" VerticalAlignment="Center">
                     <Bold>Initial State</Bold>
                 </TextBlock>
                 <Button Grid.Column="1" Grid.Row="0" x:Name="ResetButton" Content="RESET" HorizontalAlignment="Left" Margin="0,5,0,0" Height="20" VerticalAlignment="Center" IsDefault="True" Click="ResetState" />
                 <Button Grid.Column="2" Grid.Row="0" Name="PauseButton" Content="PAUSE/PLAY" HorizontalAlignment="Left" Margin="0,5,0,0" Height="20" VerticalAlignment="Center" IsDefault="True" Click="PauseState" />
                 <Slider Grid.Column="3" Grid.Row="0" Grid.ColumnSpan="4" Name="SpeedSlider" MinWidth="200" Value="1" Minimum="1" Maximum="50" SmallChange="1" LargeChange="5" TickFrequency="1"  Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,5,0,0" Height="20" ValueChanged="SpeedChanged"/>
-                <TextBlock Grid.Column ="0" Grid.Row="1" Name="textBlockSeed" TextWrapping="Wrap" MinWidth="50" VerticalAlignment="Center"><Bold>Seed</Bold></TextBlock>
-                <TextBox Grid.Column ="1" Grid.Row="1" Text="80" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,5,0,0" TextChanged="SeedTextChanged"></TextBox>
+                <StackPanel Orientation="Horizontal" Grid.Column ="0" Grid.Row="1">
+                    <TextBlock Name="textBlockSeed" TextWrapping="Wrap" VerticalAlignment="Center"><Bold>Seed</Bold></TextBlock>
+                    <TextBox Text="80" Name="TextBoxSeed" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0" TextChanged="SeedTextChanged"></TextBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Grid.Column ="1" Grid.Row="1" Grid.ColumnSpan="5">
+                    <TextBlock Name="textBlockUnderpopulation" TextWrapping="Wrap" VerticalAlignment="Center">Underpopulation</TextBlock>
+                    <TextBox Text="1" Name="TextBoxUnderPop"  HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0" TextChanged="UnderPopulationChanged"></TextBox>
+                    <TextBlock Name="textBlockOverpopulation" TextWrapping="Wrap" VerticalAlignment="Center" Margin="10,0,0,0">Overpopulation</TextBlock>
+                    <TextBox Text="5" Name="TextBoxOverPop" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0" TextChanged="OverPopulationChanged"></TextBox>
+                    <TextBlock Name="textBlockBirth" TextWrapping="Wrap" VerticalAlignment="Center" Margin="10,0,0,0">Birth</TextBlock>
+                    <TextBox Text="3" Name="TextBoxProcPop"  HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0" TextChanged="BirthChanged"></TextBox>
+                </StackPanel> 
             </Grid>
         </GroupBox>
         <Border Grid.Row="1" BorderThickness="5" BorderBrush="Black" Grid.RowSpan="1" Height="Auto" Width="Auto" MinHeight="100" MinWidth="100">
