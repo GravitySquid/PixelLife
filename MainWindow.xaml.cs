@@ -23,21 +23,20 @@ using System.Drawing.Drawing2D;
 namespace PixelLife
 {
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Pixel Life Simulator
     /// </summary>
 
     public partial class MainWindow : Window
     {
         BitmapSource universeSource;
         Bitmap universe;
-        //Bitmap universePrev;
         Random random = new Random();
         int stateCounter = 0;
         bool pausedState = true;
         System.Drawing.Color defaultColor;
         Graphics bitmapGraphics;
         System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
-        int Population = 80;
+        decimal PopulationDensityPercentage = 8;
         private bool _setupComplete = false;
         int Underpopulation = 1;
         int Overpopulation = 5;
@@ -48,22 +47,21 @@ namespace PixelLife
         const int HEIGHT = 400;
 
         // Representations
-        cell[,] LifeMatrix, PrevLifeMatrix;
+        Cell[,] LifeMatrix, PrevLifeMatrix;
 
         public MainWindow()
         {
             InitializeComponent();
 
             defaultColor = Color.Wheat;
-            LifeMatrix = new cell[WIDTH, HEIGHT];
-            PrevLifeMatrix = new cell[WIDTH, HEIGHT];
+            LifeMatrix = new Cell[WIDTH, HEIGHT];
+            PrevLifeMatrix = new Cell[WIDTH, HEIGHT];
             resetMatrix();
 
             universe = new System.Drawing.Bitmap(WIDTH, HEIGHT);
             updateBitmap();
 
             // Timer to update universe
-            //System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
             dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
             dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 1000);
             dispatcherTimer.Start();
@@ -74,20 +72,21 @@ namespace PixelLife
 
         private void resetMatrix()
         {
-
-            int randInt;
+            // RESET the PixelLife matrix with new cells
+            // - Use Population Density Percentage to determine life
+            // - Set random colour for each life pixel 
+            int randInt, lifeExpectancy;
             for (int i = 0; i < WIDTH; i++)
             {
                 for (int j = 0; j < HEIGHT; j++)
                 {
-                    Color color = Color.FromArgb(random.Next(0, 255), random.Next(0, 255), random.Next(0, 255));
                     randInt = random.Next(1, 1000);
-                    if (randInt <= Population)
+                    if ((decimal)(randInt / 10) <= PopulationDensityPercentage)
                     {
-                        LifeMatrix[i, j] = new cell(1, color);
+                        LifeMatrix[i, j] = new Cell(1);
                     }
                     else
-                        LifeMatrix[i, j] = new cell(0, color);
+                        LifeMatrix[i, j] = new Cell(0);
                 }
             }
             stateCounter = 0;
@@ -97,6 +96,7 @@ namespace PixelLife
 
         private void updateBitmap()
         {
+            // Update Bitmap from PixelLife Matrix
             for (int i = 0; i < WIDTH; i++)
             {
                 for (int j = 0; j < HEIGHT; j++)
@@ -108,8 +108,6 @@ namespace PixelLife
                 }
             }
             // Update impage
-
-            //universe.SetResolution(1290 * 4, 1080 * 4);
             universeSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
                 universe.GetHbitmap(),
                 IntPtr.Zero,
@@ -124,12 +122,15 @@ namespace PixelLife
             universe.Dispose();
             universe = new System.Drawing.Bitmap(WIDTH, HEIGHT);
 
+            // APPLY DEATH BY AGING
+            AgeMaxtrix(1);
+
             // SAVE CURRENT STATE
             for (int i = 0; i < WIDTH; i++)
             {
                 for (int j = 0; j < HEIGHT; j++)
                 {
-                    PrevLifeMatrix[i, j] = new cell(LifeMatrix[i, j].State, LifeMatrix[i, j].Color);
+                    PrevLifeMatrix[i, j] = new Cell(LifeMatrix[i, j].State, LifeMatrix[i, j].Color, LifeMatrix[i, j].RemainingLifeSpan, LifeMatrix[i, j].MaximumLifeSpan);
                 }
             }
 
@@ -142,15 +143,33 @@ namespace PixelLife
             updateBitmap();
         }
 
+        private void AgeMaxtrix(int deathRate)
+        {
+            // APPLY AGING
+            if (deathRate > 0)
+            {
+                for (int i = 0; i < WIDTH; i++)
+                {
+                    for (int j = 0; j < HEIGHT; j++)
+                    {
+                        LifeMatrix[i, j].Age(1);
+                    }
+                }
+            }
+        }
+
         private void LifeMethod1(int lonelyDeathTouches, int overpopulationDeathTouches, int procreationTouches)
         {
-            textBlockStatus.Text = string.Format("UnderPop: {0}, OverPop: {1}, Birth: {2}",lonelyDeathTouches.ToString(), overpopulationDeathTouches.ToString(), procreationTouches.ToString());
+            // UPDATE STATUS BAR
+            textBlockStatus.Text = string.Format("PopDensity: {0}, UnderPop: {1}, OverPop: {2}, Birth: {3}", PopulationDensityPercentage, lonelyDeathTouches.ToString(), overpopulationDeathTouches.ToString(), procreationTouches.ToString());
+
             // UPDATE CELLS
             int touchCount = 0;
             for (int i = 1; i < WIDTH - 1; i++)
             {
                 for (int j = 1; j < HEIGHT - 1; j++)
                 {
+
                     touchCount = 0;
                     List<Tuple<int, int>> touches = new List<Tuple<int, int>>();
                     if (PrevLifeMatrix[i - 1, j].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j)); };
@@ -165,20 +184,21 @@ namespace PixelLife
                     // ALIVE CELL, check for death
                     if (PrevLifeMatrix[i, j].State == 1)
                     {
-                        // if 0 or 1 touch, die of lonelyness
+                        // Too few touches, die of lonelyness
                         if (touchCount <= lonelyDeathTouches) LifeMatrix[i, j].State = 0;
-                        // if 4 or more touch, die of overpopulation
+                        // Too many touches, die of overpopulation
                         if (touchCount >= overpopulationDeathTouches) LifeMatrix[i, j].State = 0;
                         // Else Lives on
                     }
-                    else // DEAD CELL, check for birth
+                    else // EMPTY CELL, check for birth
                     {
-                        // if 3 alive, make a baby
+                        // if just the right population for procreation, make a baby
+                        // Inherit colour from one of the parent pixels
                         if (touchCount == procreationTouches)
                         {
-                            LifeMatrix[i, j].State = 1;
                             int parent = random.Next(0, touches.Count - 1);
-                            LifeMatrix[i, j].Color = PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].Color;
+                            //LifeMatrix[i, j] = new Cell(1, PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].Color);
+                            LifeMatrix[i, j] = PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].HaveChild();
                         }
                     }
                 }
@@ -211,9 +231,9 @@ namespace PixelLife
             pausedState = true;
             try
             {
-                Population = int.Parse(TextBoxSeed.Text);
+                PopulationDensityPercentage = decimal.Parse(TextBoxSeed.Text);
             }
-            catch { Population = 80; }
+            catch { PopulationDensityPercentage = 8; }
             resetMatrix();
             updateBitmap();
         }
@@ -255,12 +275,39 @@ namespace PixelLife
         }
     }
 
-    public class cell
+    public class Cell
     {
         public int State;
         public Color Color;
+        public int RemainingLifeSpan;
+        public int MaximumLifeSpan;
+        private Random _random = new Random();
 
-        public cell(int state, Color color) { State = state; Color = color; }
+        public Cell(int state, Color color, int life, int maxLife) { State = state; Color = color; RemainingLifeSpan = life; MaximumLifeSpan = maxLife; }
+
+        public Cell(int state, Color color, int life) { State = state; Color = color; RemainingLifeSpan = life; MaximumLifeSpan = RemainingLifeSpan; }
+
+        public Cell(int state, Color color) { State = state; Color = color; RemainingLifeSpan = _random.Next(10, 150); MaximumLifeSpan = RemainingLifeSpan; }
+        public Cell(int state)
+        {
+            State = state;
+            Color = Color.FromArgb(_random.Next(0, 255), _random.Next(0, 255), _random.Next(0, 255));
+            RemainingLifeSpan = _random.Next(10, 100);
+            MaximumLifeSpan = RemainingLifeSpan;
+        }
+
+        public void Age(int agingRate)
+        {
+            if (this.State == 1 && this.RemainingLifeSpan > 0) this.RemainingLifeSpan -= agingRate;
+            if (this.RemainingLifeSpan <= 0) this.State = 0;
+        }
+
+        public Cell HaveChild()
+        {
+            Cell child = new Cell(1, this.Color, this.MaximumLifeSpan);
+            return child;
+        }
 
     }
 }
+
