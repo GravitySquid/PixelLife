@@ -1,275 +1,270 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-
-using System.Drawing;
-using System.Runtime.InteropServices;
 using System.IO;
-using System.ComponentModel;
-using Color = System.Drawing.Color;
-using System.Drawing.Drawing2D;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Avalonia.Media.Imaging;
+using Avalonia.Interactivity;
+using Avalonia;
+using Avalonia.Media;
+using Avalonia.Platform;
+using System.Runtime.InteropServices;
+using System.Reactive.Linq;
+// ImageSharp removed: using Avalonia WriteableBitmap instead
 
 namespace PixelLife
 {
-    /// <summary>
-    /// Pixel Life Simulator
-    /// </summary>
-
     public partial class MainWindow : Window
     {
-        BitmapSource universeSource;
-        Bitmap universe;
+        private WriteableBitmap universeBitmap;
+        private byte[] pixelBuffer;
         Random random = new Random();
         int stateCounter = 0;
         bool pausedState = true;
-        System.Drawing.Color defaultColor;
-        Graphics bitmapGraphics;
-        System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
+        Color defaultColor;
+        DispatcherTimer dispatcherTimer = new DispatcherTimer();
         decimal PopulationDensityPercentage = 8;
         private bool _setupComplete = false;
         int Underpopulation = 1;
         int Overpopulation = 5;
         int Birth = 3;
 
-        // CONSTANTS
         const int WIDTH = 400;
         const int HEIGHT = 400;
 
-        // Representations
         Cell[,] LifeMatrix, PrevLifeMatrix;
+
+        // UI controls - auto-generated from x:Name in XAML
+        private TextBlock? textBlock1;
+        private Button? ResetButton;
+        private Button? PauseButton;
+        private Slider? SpeedSlider;
+        private TextBox? TextBoxSeed;
+        private TextBox? TextBoxUnderPop;
+        private TextBox? TextBoxOverPop;
+        private TextBox? TextBoxProcPop;
+        private Avalonia.Controls.Image? mainImage;
+        private TextBlock? textBlockStatus;
 
         public MainWindow()
         {
             InitializeComponent();
 
-            defaultColor = Color.Wheat;
+            // Get references to named controls from XAML
+            textBlock1 = this.FindControl<TextBlock>("textBlock1");
+            ResetButton = this.FindControl<Button>("ResetButton");
+            PauseButton = this.FindControl<Button>("PauseButton");
+            SpeedSlider = this.FindControl<Slider>("SpeedSlider");
+            TextBoxSeed = this.FindControl<TextBox>("TextBoxSeed");
+            TextBoxUnderPop = this.FindControl<TextBox>("TextBoxUnderPop");
+            TextBoxOverPop = this.FindControl<TextBox>("TextBoxOverPop");
+            TextBoxProcPop = this.FindControl<TextBox>("TextBoxProcPop");
+            mainImage = this.FindControl<Avalonia.Controls.Image>("mainImage");
+            textBlockStatus = this.FindControl<TextBlock>("textBlockStatus");
+
+            // Wire up event handlers
+            ResetButton?.Click += ResetState;
+            PauseButton?.Click += PauseState;
+
+            // subscribe to value/text changes via PropertyChanged to avoid ambiguous extension overloads
+            SpeedSlider?.PropertyChanged += (s, e) => { if (e.Property == Avalonia.Controls.Primitives.RangeBase.ValueProperty) SpeedChanged(null); };
+            TextBoxSeed?.PropertyChanged += (s, e) => { if (e.Property == TextBox.TextProperty) SeedTextChanged(); };
+            TextBoxOverPop?.PropertyChanged += (s, e) => { if (e.Property == TextBox.TextProperty) OverPopulationChanged(); };
+            TextBoxUnderPop?.PropertyChanged += (s, e) => { if (e.Property == TextBox.TextProperty) UnderPopulationChanged(); };
+            TextBoxProcPop?.PropertyChanged += (s, e) => { if (e.Property == TextBox.TextProperty) BirthChanged(); };
+
+            defaultColor = Color.FromRgb(245, 222, 179);
             LifeMatrix = new Cell[WIDTH, HEIGHT];
             PrevLifeMatrix = new Cell[WIDTH, HEIGHT];
             resetMatrix();
 
-            universe = new System.Drawing.Bitmap(WIDTH, HEIGHT);
+            pixelBuffer = new byte[WIDTH * HEIGHT * 4];
+            universeBitmap = new WriteableBitmap(new PixelSize(WIDTH, HEIGHT), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+            
+            // Set the bitmap source
+            if (mainImage != null)
+                mainImage.Source = universeBitmap;
+            
             updateBitmap();
 
-            // Timer to update universe
-            dispatcherTimer.Tick += new EventHandler(dispatcherTimer_Tick);
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, 1000);
+            dispatcherTimer.Tick += dispatcherTimer_Tick;
+            dispatcherTimer.Interval = TimeSpan.FromMilliseconds(1000);
             dispatcherTimer.Start();
             _setupComplete = true;
-            this.Top = 0;
-            this.Left = 100;
         }
+
+        private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
         private void resetMatrix()
         {
-            // RESET the PixelLife matrix with new cells
-            // - Use Population Density Percentage to determine life
-            // - Set random colour for each life pixel 
-            int randInt, lifeExpectancy;
             for (int i = 0; i < WIDTH; i++)
+            for (int j = 0; j < HEIGHT; j++)
             {
-                for (int j = 0; j < HEIGHT; j++)
-                {
-                    randInt = random.Next(1, 1000);
-                    if ((decimal)(randInt / 10) <= PopulationDensityPercentage)
-                    {
-                        LifeMatrix[i, j] = new Cell(1);
-                    }
-                    else
-                        LifeMatrix[i, j] = new Cell(0);
-                }
+                int randInt = random.Next(1, 1000);
+                if ((decimal)(randInt / 10) <= PopulationDensityPercentage)
+                    LifeMatrix[i, j] = new Cell(1);
+                else
+                    LifeMatrix[i, j] = new Cell(0);
             }
             stateCounter = 0;
-            textBlock1.Text = "State Counter = " + stateCounter.ToString();
-        }
+            textBlock1?.SetValue(TextBlock.TextProperty, "State Counter = " + stateCounter.ToString());
 
+            // Ensure PrevLifeMatrix is initialized to avoid null dereferences
+            for (int i = 0; i < WIDTH; i++)
+            for (int j = 0; j < HEIGHT; j++)
+                PrevLifeMatrix[i, j] = new Cell(LifeMatrix[i, j].State, LifeMatrix[i, j].Color, LifeMatrix[i, j].RemainingLifeSpan, LifeMatrix[i, j].MaximumLifeSpan);
+        }
 
         private void updateBitmap()
         {
-            // Update Bitmap from PixelLife Matrix
-            for (int i = 0; i < WIDTH; i++)
+            // Fill BGRA buffer
+            for (int j = 0; j < HEIGHT; j++)
             {
-                for (int j = 0; j < HEIGHT; j++)
+                for (int i = 0; i < WIDTH; i++)
                 {
-                    if (LifeMatrix[i, j].State == 1)
-                        universe.SetPixel(i, j, LifeMatrix[i, j].Color);
-                    else
-                        universe.SetPixel(i, j, defaultColor);
+                    var c = (LifeMatrix[i, j].State == 1) ? LifeMatrix[i, j].Color : defaultColor;
+                    int idx = (j * WIDTH + i) * 4;
+                    pixelBuffer[idx + 0] = c.B; // B
+                    pixelBuffer[idx + 1] = c.G; // G
+                    pixelBuffer[idx + 2] = c.R; // R
+                    pixelBuffer[idx + 3] = c.A; // A
                 }
             }
-            // Update impage
-            universeSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                universe.GetHbitmap(),
-                IntPtr.Zero,
-                System.Windows.Int32Rect.Empty,
-                BitmapSizeOptions.FromWidthAndHeight(WIDTH, HEIGHT));
-            mainImage.Source = universeSource;
+
+            // Update the bitmap
+            using (var fb = universeBitmap.Lock())
+            {
+                Marshal.Copy(pixelBuffer, 0, fb.Address, pixelBuffer.Length);
+            }
+            
+            // Force visual invalidation for Linux rendering
+            if (mainImage != null)
+                mainImage.InvalidateVisual();
         }
 
-        private void dispatcherTimer_Tick(object sender, EventArgs e)
+        private void dispatcherTimer_Tick(object? sender, EventArgs e)
         {
-            if (pausedState == true) return;
-            universe.Dispose();
-            universe = new System.Drawing.Bitmap(WIDTH, HEIGHT);
+            if (pausedState) return;
+            // reuse existing bitmap and buffer; just clear buffer
+            Array.Clear(pixelBuffer, 0, pixelBuffer.Length);
 
-            // APPLY DEATH BY AGING
             AgeMaxtrix(1);
 
-            // SAVE CURRENT STATE
             for (int i = 0; i < WIDTH; i++)
-            {
-                for (int j = 0; j < HEIGHT; j++)
-                {
-                    PrevLifeMatrix[i, j] = new Cell(LifeMatrix[i, j].State, LifeMatrix[i, j].Color, LifeMatrix[i, j].RemainingLifeSpan, LifeMatrix[i, j].MaximumLifeSpan);
-                }
-            }
+            for (int j = 0; j < HEIGHT; j++)
+                PrevLifeMatrix[i, j] = new Cell(LifeMatrix[i, j].State, LifeMatrix[i, j].Color, LifeMatrix[i, j].RemainingLifeSpan, LifeMatrix[i, j].MaximumLifeSpan);
 
-            // UPDATE CELLS
             LifeMethod1(Underpopulation, Overpopulation, Birth);
 
-            // State Counter - tick over
             stateCounter++;
-            textBlock1.Text = "State Counter = " + stateCounter.ToString();
+            textBlock1?.SetValue(TextBlock.TextProperty, "State Counter = " + stateCounter.ToString());
             updateBitmap();
         }
 
         private void AgeMaxtrix(int deathRate)
         {
-            // APPLY AGING
             if (deathRate > 0)
             {
                 for (int i = 0; i < WIDTH; i++)
-                {
-                    for (int j = 0; j < HEIGHT; j++)
-                    {
-                        LifeMatrix[i, j].Age(1);
-                    }
-                }
+                for (int j = 0; j < HEIGHT; j++)
+                    LifeMatrix[i, j].Age(1);
             }
         }
 
         private void LifeMethod1(int lonelyDeathTouches, int overpopulationDeathTouches, int procreationTouches)
         {
-            // UPDATE STATUS BAR
-            textBlockStatus.Text = string.Format("PopDensity: {0}, UnderPop: {1}, OverPop: {2}, Birth: {3}", PopulationDensityPercentage, lonelyDeathTouches.ToString(), overpopulationDeathTouches.ToString(), procreationTouches.ToString());
+            if (textBlockStatus != null)
+                textBlockStatus.Text = string.Format("PopDensity: {0}, UnderPop: {1}, OverPop: {2}, Birth: {3}", PopulationDensityPercentage, lonelyDeathTouches.ToString(), overpopulationDeathTouches.ToString(), procreationTouches.ToString());
 
-            // UPDATE CELLS
-            int touchCount = 0;
+            int touchCount;
             for (int i = 1; i < WIDTH - 1; i++)
+            for (int j = 1; j < HEIGHT - 1; j++)
             {
-                for (int j = 1; j < HEIGHT - 1; j++)
+                touchCount = 0;
+                List<Tuple<int, int>> touches = new List<Tuple<int, int>>();
+                if (PrevLifeMatrix[i - 1, j].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j)); };
+                if (PrevLifeMatrix[i - 1, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j - 1)); };
+                if (PrevLifeMatrix[i - 1, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j + 1)); };
+                if (PrevLifeMatrix[i + 1, j].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j)); };
+                if (PrevLifeMatrix[i + 1, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j - 1)); };
+                if (PrevLifeMatrix[i + 1, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j + 1)); };
+                if (PrevLifeMatrix[i, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i, j - 1)); };
+                if (PrevLifeMatrix[i, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i, j + 1)); };
+
+                if (PrevLifeMatrix[i, j].State == 1)
                 {
-
-                    touchCount = 0;
-                    List<Tuple<int, int>> touches = new List<Tuple<int, int>>();
-                    if (PrevLifeMatrix[i - 1, j].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j)); };
-                    if (PrevLifeMatrix[i - 1, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j - 1)); };
-                    if (PrevLifeMatrix[i - 1, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i - 1, j + 1)); };
-                    if (PrevLifeMatrix[i + 1, j].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j)); };
-                    if (PrevLifeMatrix[i + 1, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j - 1)); };
-                    if (PrevLifeMatrix[i + 1, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i + 1, j + 1)); };
-                    if (PrevLifeMatrix[i, j - 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i, j - 1)); };
-                    if (PrevLifeMatrix[i, j + 1].State == 1) { touchCount++; touches.Add(Tuple.Create(i, j + 1)); };
-
-                    // ALIVE CELL, check for death
-                    if (PrevLifeMatrix[i, j].State == 1)
+                    if (touchCount <= lonelyDeathTouches) LifeMatrix[i, j].State = 0;
+                    if (touchCount >= overpopulationDeathTouches) LifeMatrix[i, j].State = 0;
+                }
+                else
+                {
+                    if (touchCount == procreationTouches && touches.Count > 0)
                     {
-                        // Too few touches, die of lonelyness
-                        if (touchCount <= lonelyDeathTouches) LifeMatrix[i, j].State = 0;
-                        // Too many touches, die of overpopulation
-                        if (touchCount >= overpopulationDeathTouches) LifeMatrix[i, j].State = 0;
-                        // Else Lives on
-                    }
-                    else // EMPTY CELL, check for birth
-                    {
-                        // if just the right population for procreation, make a baby
-                        // Inherit colour from one of the parent pixels
-                        if (touchCount == procreationTouches)
-                        {
-                            int parent = random.Next(0, touches.Count - 1);
-                            //LifeMatrix[i, j] = new Cell(1, PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].Color);
-                            LifeMatrix[i, j] = PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].HaveChild();
-                        }
+                        int parent = random.Next(0, touches.Count);
+                        LifeMatrix[i, j] = PrevLifeMatrix[touches[parent].Item1, touches[parent].Item2].HaveChild();
                     }
                 }
             }
         }
 
-        private void PauseState(object sender, RoutedEventArgs e)
+        private void PauseState(object? sender, RoutedEventArgs e)
         {
-            if (pausedState == true) pausedState = false;
-            else pausedState = true;
+            pausedState = !pausedState;
         }
 
-        private void ResetState(object sender, RoutedEventArgs e)
+        private void ResetState(object? sender, RoutedEventArgs e)
         {
             pausedState = true;
             resetMatrix();
             updateBitmap();
         }
 
-        private void SpeedChanged(object sender, RoutedEventArgs e)
+        private void SpeedChanged(object? value)
         {
-            int speed = (int)this.SpeedSlider.Value;
-            speed = 2 * 1000 / speed;
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, speed);
+            try
+            {
+                var v = Convert.ToDouble(SpeedSlider?.Value ?? 1.0);
+                int speed = (int)v;
+                speed = 2 * 1000 / Math.Max(1, speed);
+                dispatcherTimer.Interval = TimeSpan.FromMilliseconds(speed);
+            }
+            catch { }
         }
 
-        private void SeedTextChanged(object sender, RoutedEventArgs e)
+        private void SeedTextChanged()
         {
-            if (!_setupComplete) { return; }
+            if (!_setupComplete) return;
             pausedState = true;
-            try
-            {
-                PopulationDensityPercentage = decimal.Parse(TextBoxSeed.Text);
-            }
-            catch { PopulationDensityPercentage = 8; }
+            if (!decimal.TryParse(TextBoxSeed?.Text, out var pd)) pd = 8;
+            PopulationDensityPercentage = pd;
             resetMatrix();
             updateBitmap();
         }
 
-        private void OverPopulationChanged(object sender, TextChangedEventArgs e)
+        private void OverPopulationChanged()
         {
-            if (!_setupComplete) { return; }
-            try
-            {
-                Overpopulation = int.Parse(TextBoxOverPop.Text);
-            }
-            catch { Overpopulation = 5; }
+            if (!_setupComplete) return;
+            if (!int.TryParse(TextBoxOverPop?.Text, out var op)) op = 5;
+            Overpopulation = op;
             resetMatrix();
             updateBitmap();
         }
 
-        private void UnderPopulationChanged(object sender, TextChangedEventArgs e)
+        private void UnderPopulationChanged()
         {
-            if (!_setupComplete) { return; }
-            try
-            {
-                Underpopulation = int.Parse(TextBoxUnderPop.Text);
-            }
-            catch { Underpopulation = 1; }
+            if (!_setupComplete) return;
+            if (!int.TryParse(TextBoxUnderPop?.Text, out var up)) up = 1;
+            Underpopulation = up;
             resetMatrix();
             updateBitmap();
         }
 
-        private void BirthChanged(object sender, TextChangedEventArgs e)
+        private void BirthChanged()
         {
-            if (!_setupComplete) { return; }
-            try
-            {
-                Birth = int.Parse(TextBoxProcPop.Text);
-            }
-            catch { Birth = 3; }
+            if (!_setupComplete) return;
+            if (!int.TryParse(TextBoxProcPop?.Text, out var b)) b = 3;
+            Birth = b;
             resetMatrix();
             updateBitmap();
         }
@@ -284,14 +279,12 @@ namespace PixelLife
         private Random _random = new Random();
 
         public Cell(int state, Color color, int life, int maxLife) { State = state; Color = color; RemainingLifeSpan = life; MaximumLifeSpan = maxLife; }
-
         public Cell(int state, Color color, int life) { State = state; Color = color; RemainingLifeSpan = life; MaximumLifeSpan = RemainingLifeSpan; }
-
         public Cell(int state, Color color) { State = state; Color = color; RemainingLifeSpan = _random.Next(10, 150); MaximumLifeSpan = RemainingLifeSpan; }
         public Cell(int state)
         {
             State = state;
-            Color = Color.FromArgb(_random.Next(0, 255), _random.Next(0, 255), _random.Next(0, 255));
+            Color = Color.FromRgb((byte)_random.Next(256), (byte)_random.Next(256), (byte)_random.Next(256));
             RemainingLifeSpan = _random.Next(10, 100);
             MaximumLifeSpan = RemainingLifeSpan;
         }
@@ -307,7 +300,6 @@ namespace PixelLife
             Cell child = new Cell(1, this.Color, this.MaximumLifeSpan);
             return child;
         }
-
     }
 }
 
